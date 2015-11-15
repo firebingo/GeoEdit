@@ -6,22 +6,42 @@ using System.Collections;
 public class vertObject : MonoBehaviour
 {
     Vector3 baseScale;
+    bool selected = false;
+    bool selectFlip = false; //used so it doesnt get and set sprites color every frane.
 
     void Start()
     {
-        baseScale = transform.localScale;
+        baseScale = new Vector3(0.12f, 0.12f, 0.12f);
         setTransform();
     }
 
     // Update is called once per frame
     void Update()
     {
-        
+
     }
 
     void OnRenderObject()
     {
         setTransform();
+        if(!selected)
+        {
+            GetComponent<SpriteRenderer>().color = Color.blue;
+            selectFlip = true;
+        }
+        else
+        {
+            GetComponent<SpriteRenderer>().color = Color.red;
+            selectFlip = true;
+        }
+
+        foreach (Transform transform in Selection.transforms)
+        {
+            if (transform == this.transform)
+                selected = true;
+            else
+                selected = false;
+        }
     }
 
     void setTransform()
@@ -36,5 +56,11 @@ public class vertObject : MonoBehaviour
                 transform.localScale = baseScale * 2;
             }
         }
+    }
+
+    void setSelected(bool i)
+    {
+        selected = i;
+        selectFlip = false;
     }
 }
