@@ -27,6 +27,10 @@ public class GeoEditWindow : EditorWindow
     GameObject selectedObject = null;
     GameObject vertParent = null;
     GameObject lastObject = null;
+    GameObject selectedVertex = null;
+    Vector3 vertexLast = new Vector3 (0,0,0);
+    MeshFilter objectMesh = null;
+    Vector3[] objectVerts = null;
 
     [MenuItem("Window/GeoEdit")]
     public static void ShowWindow()
@@ -63,18 +67,18 @@ public class GeoEditWindow : EditorWindow
                 if (Selection.activeGameObject && lastObject != selectedObject)
                 {   
                     //get the mesh of the selected object.
-                    MeshFilter objectMesh = selectedObject.GetComponent<MeshFilter>();
+                    objectMesh = selectedObject.GetComponent<MeshFilter>();
                     //if the mesh was set properly.
                     if (objectMesh)
                     {
                         //create a array of all the positions of the meshes' vertices.
-                        Vector3[] verts = objectMesh.sharedMesh.vertices;
+                        objectVerts = objectMesh.mesh.vertices;
 
                         //create all the vertex objects and set their positions to the meshes vertices.
-                        for (int i = 0; i < verts.Length; ++i)
+                        for (int i = 0; i < objectVerts.Length; ++i)
                         {
                             //need to get a world space scale so vertex objects are placed properly on a scaled object.
-                            Vector3 scaledPos = selectedObject.transform.TransformPoint(verts[i]);
+                            Vector3 scaledPos = selectedObject.transform.TransformPoint(objectVerts[i]);
 
                             vertObjects.Add((GameObject)Instantiate(vertObjectPrefab, scaledPos, new Quaternion()));
                             vertObjects[i].transform.parent = vertParent.transform;
@@ -92,6 +96,40 @@ public class GeoEditWindow : EditorWindow
                         && Selection.activeGameObject.transform.parent.transform.parent == vertParent.transform.parent))
                     {
                         cleanObjects();
+                    }
+                }
+            }
+
+            //if there isint a selected vertex we need to set it if there is one selected
+            //also need to reset it if a new vertex is selected.
+            if(!selectedVertex || (selectedVertex && Selection.activeGameObject != selectedVertex))
+            {
+                //make sure it is a vertex selected
+                if (Selection.activeGameObject
+                        && Selection.activeGameObject.transform.parent && Selection.activeGameObject.transform.parent
+                        && Selection.activeGameObject.transform.parent == vertParent.transform)
+                {
+                    selectedVertex = Selection.activeGameObject;
+                    vertexLast = selectedVertex.transform.position;
+                }
+            }
+            //if there is a selected vertex
+            else if(selectedVertex)
+            {
+                //if the vertex object has been moved
+                if (selectedVertex.transform.position != vertexLast)
+                {
+                    vertexLast = selectedVertex.transform.position;
+                    //search through the vertices and find the selected one.
+                    for (int i = 0; i < vertObjects.Count; ++i)
+                    {
+                        if(vertObjects[i].transform.position == vertexLast && objectMesh)
+                        {
+                            //convert the selected vertex's new position to the selected object's local space then set it's vertices.
+                            objectVerts[i] = selectedObject.transform.InverseTransformPoint(vertObjects[i].transform.localPosition);
+                            List<Vector3> vertList = new List<Vector3>(objectVerts);
+                            objectMesh.mesh.SetVertices(vertList);
+                        }
                     }
                 }
             }
@@ -120,6 +158,9 @@ public class GeoEditWindow : EditorWindow
         //reintilize the list
         vertObjects = new List<GameObject>();
         //set selected objects to null
+        objectMesh = null;
+        objectVerts = null;
+        selectedVertex = null;
         selectedObject = null;
         lastObject = null;
     }

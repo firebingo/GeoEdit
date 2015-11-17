@@ -24,23 +24,26 @@ public class vertObject : MonoBehaviour
     void OnRenderObject()
     {
         setTransform();
-        if(!selected)
+        if (!selectFlip)
         {
-            GetComponent<SpriteRenderer>().color = Color.blue;
-            selectFlip = true;
-        }
-        else
-        {
-            GetComponent<SpriteRenderer>().color = Color.red;
-            selectFlip = true;
+            if (!selected)
+            {
+                GetComponent<SpriteRenderer>().color = Color.blue;
+                selectFlip = true;
+            }
+            else
+            {
+                GetComponent<SpriteRenderer>().color = Color.red;
+                selectFlip = true;
+            }
         }
 
         foreach (Transform transform in Selection.transforms)
         {
             if (transform == this.transform)
-                selected = true;
+                setSelected(true);
             else
-                selected = false;
+                setSelected(false);
         }
     }
 
