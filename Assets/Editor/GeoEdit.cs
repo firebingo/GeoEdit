@@ -147,20 +147,16 @@ public class GeoEditWindow : EditorWindow
                         List<int> relatedVertexLast = new List<int>();
                         for (int j = 0; j < vertexLast.Count; j++)
                         {
-                            int t = vertexLast.FindIndex(j, delegate (Vector3 vl) { return vl == vertLastTemp; });
-                            if (t == -1) break;
-                            relatedVertexLast.Add(t);
-                            j = t;
+                            if (vertexLast[j] == vertLastTemp)
+                                relatedVertexLast.Add(j);
                         }
 
                         // Get the indices of all the related vertexObjects
                         List<int> relatedVertexObjects = new List<int>();
                         for (int j = 0; j < vertObjects.Count; j++)
                         {
-                            int t = vertObjects.FindIndex(j, delegate (GameObject vo) { return (vo.transform.position == vertLastTemp || vo.transform.position == selectedVertTemp); });
-                            if (t == -1) break;
-                            relatedVertexObjects.Add(t);
-                            j = t;
+                            if ((vertObjects[j].transform.position == vertLastTemp || vertObjects[j].transform.position == selectedVertTemp))
+                                relatedVertexObjects.Add(j);
                         }
 
                         // Go through all the indices found, setting everthing to their new positions P.S Both index lists should be the same, if they're not, something went wrong
