@@ -77,12 +77,12 @@ public class GeoEditWindow : EditorWindow
         vertexManipulation = EditorGUILayout.Toggle("Vertex Manipulation", vertexManipulation);
 
         // Never let them both be active at the same time
-        if(f) if (vertexManipulation) faceManipulation = false;
-        if(v) if (faceManipulation) vertexManipulation = false;
+        if (f) if (vertexManipulation) { faceManipulation = false; Selection.activeGameObject = selectedObject; cleanObjects(); }
+        if (v) if (faceManipulation) { vertexManipulation = false; Selection.activeGameObject = selectedObject; cleanObjects(); }
 
-        if (!extruding && GUILayout.Button("Extrude"))
+        if (faceManipulation && !extruding && GUILayout.Button("Extrude"))
             extruding = true;
-        if (extruding && GUILayout.Button("Move face to extude"))
+        if (faceManipulation && extruding && GUILayout.Button("Move face to extude"))
             extruding = false;
     }
 
@@ -144,6 +144,8 @@ public class GeoEditWindow : EditorWindow
                     }
                 }
             }
+            else
+                cleanObjects();
 
             /// Vertex selection and Automatic vertex grouping ///
             // Go through selected objects
@@ -315,9 +317,9 @@ public class GeoEditWindow : EditorWindow
                 // If there is no object selected in the scene or the currently selected object in the scene isn't the last object selected, clean up everything
                 else if (!Selection.activeGameObject || lastObject != Selection.activeGameObject)
                 {
-                    //don't clean up if the current object selected is one of the vertex objects of the last selected object.
+                    // Don't clean up if the current object selected is one of the vertex objects of the last selected object.
                     if (!(Selection.activeGameObject
-                        && Selection.activeGameObject.transform.parent && Selection.activeGameObject.transform.parent.transform.parent //ensure that the object selected is a vertex.
+                        && Selection.activeGameObject.transform.parent && Selection.activeGameObject.transform.parent.transform.parent // Ensure that the object selected is a vertex.
                         && Selection.activeGameObject.transform.parent.transform.parent == vertParent.transform.parent))
                     {
                         cleanObjects();
@@ -369,7 +371,7 @@ public class GeoEditWindow : EditorWindow
                     if (vertObjects[selectedFace].transform.position != faceLast[selectedFace])
                     {
                         extruding = false;
-                        
+
                         selectedFaceVertices.Clear();
                         selectedFaceVertices = new List<int>();
 
@@ -390,7 +392,7 @@ public class GeoEditWindow : EditorWindow
                             edgeVerts.Add(new List<int>());
                             List<int> toRemove = new List<int>();
                             // Search through the selected face by triangles
-                            for (int t = 0; t < faceData[selectedFace].Count/3; t++)
+                            for (int t = 0; t < faceData[selectedFace].Count / 3; t++)
                             {
                                 int triStart = t * 3;
                                 // If the triangle contains our vertex
@@ -459,7 +461,7 @@ public class GeoEditWindow : EditorWindow
                                     int edgeVertPos = -1;
 
                                     // Search through the triangle
-                                    for(int j = 0; j < 3; j++)
+                                    for (int j = 0; j < 3; j++)
                                     {
                                         // For whichever vert this is, if it is, record its position in the triangle
                                         if (faceData[selectedFace][triStart + j] == selectedFaceVertices[i])
@@ -599,6 +601,8 @@ public class GeoEditWindow : EditorWindow
                     objectMesh.mesh.vertices = objectVerts;
 
             } // end if (selectedObject)
+            else
+                cleanObjects();
 
         }// end if (faceManipulation)
         else
