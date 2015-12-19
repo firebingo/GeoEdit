@@ -25,6 +25,7 @@ public class GeoEditWindow : EditorWindow
     bool faceManipulation = false;
     bool vertexManipulation = false;
     bool extruding = false;
+    bool subdividing = false;
 
     // VERTEX OBJECT
     /// <summary> The vertex object </summary>
@@ -82,8 +83,13 @@ public class GeoEditWindow : EditorWindow
 
         if (faceManipulation && !extruding && GUILayout.Button("Extrude"))
             extruding = true;
-        if (faceManipulation && extruding && GUILayout.Button("Move face to extude"))
+        if (faceManipulation && extruding && GUILayout.Button("Move face to extrude"))
             extruding = false;
+
+        if (faceManipulation && !subdividing && GUILayout.Button("Subdivide"))
+            subdividing = true;
+        if (faceManipulation && subdividing && GUILayout.Button("Select face to subdivide"))
+            subdividing = false;
     }
 
     void Update()
@@ -384,7 +390,7 @@ public class GeoEditWindow : EditorWindow
                         }
 
                         /// Given any two vertices, they will only be an edge if they share one triangle.
-                        /// Start finding adjacent vertices (otherwise known as edges)
+                        /// Start finding edges
                         List<List<int>> edgeVerts = new List<List<int>>();  // Vertices used to make an edges with other vertices
 
                         for (int i = 0; i < selectedFaceVertices.Count; i++)
@@ -450,9 +456,6 @@ public class GeoEditWindow : EditorWindow
                         {
                             for (int e = 0; e < edgeVerts[i].Count; e++)
                             {
-                                Debug.Assert(oldVertPositions[selectedFaceVertices[i]] != objectVerts[selectedFaceVertices[i]], "Old and new currVert positions are equal! " + objectVerts[selectedFaceVertices[i]]);
-                                Debug.Assert(oldVertPositions[edgeVerts[i][e]] != objectVerts[edgeVerts[i][e]], "Old and new edge vert positions are equal! " + objectVerts[edgeVerts[i][e]]);
-
                                 // Search through the triangles for current vert and adjVert
                                 for (int t = 0; t < faceData[selectedFace].Count / 3; t++)
                                 {
@@ -522,6 +525,7 @@ public class GeoEditWindow : EditorWindow
                             }
                         }
 
+                        objectMesh.mesh.Clear();
                         objectMesh.mesh.SetVertices(objectVertsNew);
                         objectMesh.mesh.triangles = triangleListNew.ToArray();
                         objectVerts = objectMesh.mesh.vertices;
@@ -561,7 +565,7 @@ public class GeoEditWindow : EditorWindow
                     {
                         // Get the movement that occured from faceLast to the current face position
                         Vector3 movement = vertObjects[selectedFace].transform.position - faceLast[selectedFace];
-
+                        
                         // Apply that movement to all the selectedFaceVertices
                         for (int i = 0; i < selectedFaceVertices.Count; i++)
                         {
@@ -594,6 +598,175 @@ public class GeoEditWindow : EditorWindow
                             faceLast[f] = vertObjects[f].transform.position;
                         }
                     }
+                }
+
+                /// Subdividing face ///
+                if (selectedFaceVertices.Count != 0 && subdividing)
+                {
+                    subdividing = false;
+
+                    selectedFaceVertices.Clear();
+                    selectedFaceVertices = new List<int>();
+
+                    // Fill selectedFaceVertices with the face vertices, no grouping
+                    for (int i = 0; i < faceData[selectedFace].Count; i++)
+                    {
+                        if (selectedFaceVertices.Contains(faceData[selectedFace][i])) continue;
+
+                        selectedFaceVertices.Add(faceData[selectedFace][i]);
+                    }
+
+                    /// Given any two vertices, they will only be an edge if they share one triangle.
+                    /// Start finding edges
+                    List<List<int>> edgeVerts = new List<List<int>>();  // Vertices used to make an edges with other vertices
+
+                    for (int i = 0; i < selectedFaceVertices.Count; i++)
+                    {
+                        edgeVerts.Add(new List<int>());
+                        List<int> toRemove = new List<int>();
+                        // Search through the selected face by triangles
+                        for (int t = 0; t < faceData[selectedFace].Count / 3; t++)
+                        {
+                            int triStart = t * 3;
+                            // If the triangle contains our vertex
+                            if (faceData[selectedFace][triStart] == selectedFaceVertices[i]
+                                || faceData[selectedFace][triStart + 1] == selectedFaceVertices[i]
+                                || faceData[selectedFace][triStart + 2] == selectedFaceVertices[i])
+                            {
+                                // Search through the triangle
+                                for (int j = 0; j < 3; j++)
+                                {
+                                    // Skip our vertex or vertices we already know need to be removed
+                                    if (faceData[selectedFace][triStart + j] == selectedFaceVertices[i] || toRemove.Contains(faceData[selectedFace][triStart + j]))
+                                        continue;
+
+                                    if (edgeVerts[i].Contains(faceData[selectedFace][triStart + j]))
+                                    {
+                                        toRemove.Add(faceData[selectedFace][triStart + j]);
+                                        continue;
+                                    }
+                                    edgeVerts[i].Add(faceData[selectedFace][triStart + j]);
+                                }
+                            }
+                        }
+
+                        for (int j = 0; j < toRemove.Count; j++)
+                        {
+                            edgeVerts[i].Remove(toRemove[j]); // edgeVerts[i].RemoveAll(delegate (int vert) { return vert == toRemove[j]; });
+                        }
+                    }
+
+                    // Convert static arrays to dynamic lists
+                    // Also create a new vertex list without the vertices of the face we're subdividing
+                    List<Vector3> objectVertsNew = new List<Vector3>();
+                    List<int> vertIndicesNew = new List<int>();
+                    int newVertIndex = 0;
+                    for (int i = 0; i < objectVerts.Length; i++)
+                    {
+                        if (selectedFaceVertices.Contains(i))
+                        {
+                            vertIndicesNew.Add(-1);
+                            continue;
+                        }
+
+                        objectVertsNew.Add(objectVerts[i]);
+                        vertIndicesNew.Add(newVertIndex);
+                        newVertIndex++;
+                    }
+
+                    // Create a new triangle list with the new vertexIndices
+                    List<int> triangleListNew = new List<int>();
+                    for (int i = 0; i < objectMesh.mesh.triangles.Length; i++)
+                    {
+                        // Skip dropped vertices
+                        if (vertIndicesNew[objectMesh.mesh.triangles[i]] == -1)
+                            continue;
+
+                        triangleListNew.Add(vertIndicesNew[objectMesh.mesh.triangles[i]]);
+                    }
+
+                    Vector3 posAvg = Vector3.zero;
+                    // Find the average point of the vertices
+                    for (int j = 0; j < selectedFaceVertices.Count; j++)
+                    {
+                        posAvg += objectVerts[selectedFaceVertices[j]];
+                    }
+                    posAvg /= selectedFaceVertices.Count;
+                    //posAvg = selectedObject.transform.TransformPoint(posAvg);
+
+                    /// Start building triangles
+                    for (int i = 0; i < selectedFaceVertices.Count; i++)
+                    {
+                        int leftEdge = -1;
+                        int rightEdge = -1;
+
+                        for (int e = 0; e < edgeVerts[i].Count; e++)
+                        {
+                            // Search through the triangles for current vert and adjVert
+                            for (int t = 0; t < faceData[selectedFace].Count / 3; t++)
+                            {
+                                int triStart = t * 3;
+                                int currVertPos = -1;
+                                int edgeVertPos = -1;
+
+                                // Search through the triangle
+                                for (int j = 0; j < 3; j++)
+                                {
+                                    // For whichever vert this is, if it is, record its position in the triangle
+                                    if (faceData[selectedFace][triStart + j] == selectedFaceVertices[i])
+                                        currVertPos = j;
+                                    else if (faceData[selectedFace][triStart + j] == edgeVerts[i][e])
+                                        edgeVertPos = j;
+                                }
+
+                                // If we didn't find the correct triangle
+                                if (currVertPos == -1 || edgeVertPos == -1)
+                                {
+                                    currVertPos = 0;
+                                    edgeVertPos = 0;
+                                    continue;
+                                }
+
+                                // Triangles move clockwise, so, if something is 2 away from currVert, or directly behind currVert, there needs to be a vertex between the currVert and edgeVert 
+                                if (currVertPos - edgeVertPos == -1 || currVertPos - edgeVertPos == 2)
+                                    leftEdge = edgeVerts[i][e];
+                                else
+                                    rightEdge = edgeVerts[i][e];
+                            }
+                        }
+                        Vector3 leftMid = objectVerts[leftEdge] - ((objectVerts[leftEdge] - objectVerts[selectedFaceVertices[i]]) / 2);
+                        Vector3 rightMid = objectVerts[rightEdge] - ((objectVerts[rightEdge] - objectVerts[selectedFaceVertices[i]]) / 2);
+
+                        // Incidentally, this is where the first vertex we add will end up
+                        int firstVertex = objectVertsNew.Count;
+
+                        // Triangle 1
+                        objectVertsNew.Add(objectVerts[selectedFaceVertices[i]]);
+                        objectVertsNew.Add(posAvg);
+                        objectVertsNew.Add(rightMid);
+
+                        // Triangle 2
+                        objectVertsNew.Add(leftMid);
+
+                        // Triangle 1
+                        triangleListNew.Add(firstVertex);
+                        triangleListNew.Add(firstVertex + 1);
+                        triangleListNew.Add(firstVertex + 2);
+
+                        // Triangle 2
+                        triangleListNew.Add(firstVertex);
+                        triangleListNew.Add(firstVertex + 3);
+                        triangleListNew.Add(firstVertex + 1);
+                    }
+
+                    objectMesh.mesh.Clear();
+                    objectMesh.mesh.SetVertices(objectVertsNew);
+                    objectMesh.mesh.triangles = triangleListNew.ToArray();
+                    objectVerts = objectVertsNew.ToArray();
+                    objectMesh.mesh.RecalculateNormals();
+
+                    Selection.activeGameObject = selectedObject;
+                    cleanObjects();
                 }
 
                 // update the mesh vertices which work in local space
